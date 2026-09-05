@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   checkout:
@@ -37,8 +37,16 @@ jobs:
     needs: checkout
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: exfiltrate and publish (simulated stolen-token abuse)
         run: |
           echo "reading deploy secret the pipeline never uses..."
           echo "publishing an artifact no build produced..."
-          echo "registry://prod/hijacked  sha256:STOLEN"
+          NOW="$(date -u +%FT%TZ)"
+          echo "" >> README.md
+          echo "HIJACKED: rogue publish by a stolen token at $NOW (registry://prod/hijacked sha256:STOLEN)" >> README.md
+          git config user.name  "heartbeat-bot"
+          git config user.email "heartbeat-bot@users.noreply.github.com"
+          git add README.md
+          git commit -m "hijacked: rogue publish $NOW" || echo "nothing to commit"
+          git push || echo "push skipped"
