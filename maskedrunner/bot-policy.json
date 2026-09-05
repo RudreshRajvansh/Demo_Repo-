@@ -1,0 +1,8 @@
+{
+  "identity": "heartbeat-bot@github",
+  "description": "Heartbeat service account. Over-provisioned: the token can read secrets and publish, though the pipeline never does either. No MFA, never rotated.",
+  "credential": { "kind": "github_token", "id": "ghs_heartbeat", "issued": "2026-03-01T00:00:00Z", "last_rotated": null },
+  "allowed_actions": ["vcs_read", "secret_read", "registry_write"],
+  "allowed_scopes": ["repo/*", "secrets://prod/*", "registry://prod/*"],
+  "allowed_steps": ["checkout", "stamp", "commit"]
+}

@@ -1,0 +1,19 @@
+{
+  "run_id": "heartbeat-2026-09-06T11-45Z",
+  "planes": {
+    "runner":   { "complete": true, "carries": ["vcs_read"] },
+    "registry": { "complete": true, "carries": ["registry_write"] },
+    "secrets":  { "complete": true, "carries": ["secret_read"] }
+  },
+  "records": [
+    { "id": "gha-1-checkout", "plane": "runner", "principal": "heartbeat-bot@github", "step": "checkout", "ts": "2026-09-06T11:45:02Z",
+      "effects": [ { "id": "e1", "kind": "vcs_read", "scope": "repo/Demo_Repo" } ] },
+    { "id": "gha-2-stamp",    "plane": "runner", "principal": "heartbeat-bot@github", "step": "stamp",    "ts": "2026-09-06T11:45:30Z",
+      "effects": [ { "id": "e2", "kind": "vcs_read", "scope": "repo/Demo_Repo" } ] },
+    { "id": "sec-9",  "plane": "secrets",  "principal": "heartbeat-bot@github", "ts": "2026-09-06T11:46:10Z",
+      "effects": [ { "id": "e4", "kind": "secret_read", "scope": "secrets://prod/DEPLOY_KEY" } ] },
+    { "id": "reg-9",  "plane": "registry", "principal": "heartbeat-bot@github", "ts": "2026-09-06T11:46:41Z",
+      "effects": [ { "id": "e5", "kind": "registry_write", "scope": "registry://prod/payments", "digest": "sha256:EVIL" } ] }
+  ],
+  "edges": []
+}

@@ -1,0 +1,17 @@
+{
+  "run_id": "heartbeat-2026-09-06T09-05Z",
+  "planes": {
+    "runner":   { "complete": true, "carries": ["vcs_read"] },
+    "registry": { "complete": true, "carries": ["registry_write"] },
+    "secrets":  { "complete": true, "carries": ["secret_read"] }
+  },
+  "records": [
+    { "id": "gha-1-checkout", "plane": "runner", "principal": "heartbeat-bot@github", "step": "checkout", "ts": "2026-09-06T09:05:03Z",
+      "effects": [ { "id": "e1", "kind": "vcs_read", "scope": "repo/Demo_Repo" } ] },
+    { "id": "gha-2-stamp",    "plane": "runner", "principal": "heartbeat-bot@github", "step": "stamp",    "ts": "2026-09-06T09:05:31Z",
+      "effects": [ { "id": "e2", "kind": "vcs_read", "scope": "repo/Demo_Repo" } ] },
+    { "id": "gha-3-commit",   "plane": "runner", "principal": "heartbeat-bot@github", "step": "commit",   "ts": "2026-09-06T09:05:52Z",
+      "effects": [ { "id": "e3", "kind": "vcs_read", "scope": "repo/Demo_Repo" } ] }
+  ],
+  "edges": []
+}

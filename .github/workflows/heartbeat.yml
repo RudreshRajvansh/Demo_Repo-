@@ -1,0 +1,44 @@
+name: heartbeat
+
+# A deliberately generic pipeline: every 5 minutes it checks out, stamps the
+# README with the current time, and commits. This is the "normal" behaviour a
+# stolen credential hides inside.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+  stamp:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: stamp readme
+        run: |
+          NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          sed -i "s|Last heartbeat:.*|Last heartbeat: $NOW|" README.md || true
+          echo "digest=sha256:$(sha256sum README.md | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+  commit:
+    needs: stamp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: commit
+        run: |
+          git config user.name  "heartbeat-bot"
+          git config user.email "heartbeat-bot@users.noreply.github.com"
+          NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          sed -i "s|Last heartbeat:.*|Last heartbeat: $NOW|" README.md || true
+          git add README.md
+          git commit -m "heartbeat: $NOW" || echo "nothing to commit"
+          git push || echo "push skipped"
