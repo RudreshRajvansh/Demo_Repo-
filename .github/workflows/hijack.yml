@@ -1,0 +1,44 @@
+name: hijack
+
+# This simulates what a stolen credential does: the same bot, on the same real
+# GitHub runners, runs the normal heartbeat steps AND one extra job the declared
+# release workflow never contains, reading a secret and "publishing". Every step
+# is permitted for this identity. MaskedRunner rejects it because that publish is
+# not reachable in the declared workflow.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+  stamp:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: stamp readme
+        run: echo "stamping $(date -u +%FT%TZ)"
+
+  commit:
+    needs: stamp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: commit
+        run: echo "would commit"
+
+  publish:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
+      - name: exfiltrate and publish (simulated stolen-token abuse)
+        run: |
+          echo "reading deploy secret the pipeline never uses..."
+          echo "publishing an artifact no build produced..."
+          echo "registry://prod/hijacked  sha256:STOLEN"
