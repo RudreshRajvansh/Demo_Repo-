@@ -108,13 +108,33 @@ jobs:
             jq -r '.jobs[] | "| `\(.name)` | \(.conclusion // "in_progress") | \(.started_at) |"' jobs.json
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Exit 2 means the importer could not read the run; exit 1 would mean the
+      # run is unreachable in the model. Never let the first be shown as the
+      # second - a verdict that was not computed must not be reported as one.
       - name: normalize the run into an observation
         run: |
-          set -euo pipefail
+          set -uo pipefail
           .maskedrunner/target/release/maskedrunner ingest-actions \
             --run run.json --jobs jobs.json \
             --map .maskedrunner/spec/live.map.json \
-            --out observation.json
+            --out observation.json 2>&1 | tee import.txt
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            echo "::error::MaskedRunner could not read this run, so it reached NO verdict."
+            echo "::error::This is a gate failure, not a rejection of the pipeline."
+            {
+              echo
+              echo "#### Could not observe this run"
+              echo
+              echo "The gate failed to import the run, so **no verdict was reached**."
+              echo "This is not a rejection."
+              echo
+              echo '```'
+              cat import.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$status"
+          fi
           {
             echo
             echo "#### Observation"
@@ -141,8 +161,10 @@ jobs:
             cat verdict.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$status" -ne 0 ]; then
-            echo "::error::This run reached an outcome the declared workflow cannot produce."
+          if [ "$status" -eq 1 ]; then
+            echo "::error::REJECTED: this run reached an outcome the declared workflow cannot produce."
+          elif [ "$status" -ne 0 ]; then
+            echo "::error::The verifier itself failed, so no verdict was reached."
           fi
           exit "$status"
 
