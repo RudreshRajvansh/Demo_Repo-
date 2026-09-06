@@ -24,11 +24,20 @@ jobs:
       - name: check out the pipeline under test
         uses: actions/checkout@v4
 
-      - name: check out MaskedRunner
-        uses: actions/checkout@v4
-        with:
-          repository: RudreshRajvansh/OnSite_Final_RN3
-          path: .maskedrunner
+      # A plain clone rather than actions/checkout: the default GITHUB_TOKEN is
+      # scoped to this repository only, so checking out another repo needs a
+      # token it does not have. A public repo clones with no credentials at all.
+      - name: fetch MaskedRunner
+        env:
+          VERIFIER_REPO: ${{ vars.MASKEDRUNNER_REPO || 'RudreshRajvansh/OnSite_Final_RN3' }}
+        run: |
+          if ! git clone --depth 1 "https://github.com/${VERIFIER_REPO}.git" .maskedrunner 2>clone.log; then
+            echo "::error::Could not fetch the verifier from ${VERIFIER_REPO}."
+            echo "::error::If that repository is private, either make it public or set"
+            echo "::error::a MASKEDRUNNER_TOKEN secret with read access to it."
+            cat clone.log
+            exit 1
+          fi
 
       - name: cache the verifier build
         uses: actions/cache@v4
