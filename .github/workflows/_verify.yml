@@ -1,0 +1,71 @@
+name: maskedrunner
+
+# Reusable gate: fetches the run being checked from the Actions API, verifies it
+# against the declared workflow model, and fails when the outcome is not
+# reachable. The verifier exits non-zero on reject, so a rejected run turns the
+# workflow red without any extra plumbing.
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        required: true
+        type: string
+      spec:
+        required: true
+        type: string
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: check out the pipeline under test
+        uses: actions/checkout@v4
+
+      - name: check out MaskedRunner
+        uses: actions/checkout@v4
+        with:
+          repository: RudreshRajvansh/OnSite_Final_RN3
+          path: .maskedrunner
+
+      - name: cache the verifier build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .maskedrunner/target
+          key: maskedrunner-${{ runner.os }}-${{ hashFiles('.maskedrunner/Cargo.lock') }}
+
+      - name: build the verifier
+        working-directory: .maskedrunner
+        run: cargo build --release -p maskedrunner-cli
+
+      - name: fetch the run under test
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}" > run.json
+          gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/jobs" > jobs.json
+
+      - name: verify the run is reachable in the declared workflow
+        run: |
+          BIN=.maskedrunner/target/release/maskedrunner
+          "$BIN" ingest-actions \
+            --run run.json --jobs jobs.json \
+            --map .maskedrunner/spec/live.map.json \
+            --out observation.json
+          "$BIN" verify \
+            --spec "${{ inputs.spec }}" \
+            --observation observation.json \
+            --certificate "run-${{ inputs.run_id }}.cert.json"
+
+      - name: publish the certificate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maskedrunner-certificate-${{ inputs.run_id }}
+          path: run-*.cert.json
+          if-no-files-found: ignore

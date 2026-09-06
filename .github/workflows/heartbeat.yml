@@ -44,3 +44,16 @@ jobs:
           git add README.md
           git commit -m "heartbeat: $NOW" || echo "nothing to commit"
           git push || echo "push skipped"
+
+  # The gate. Verifies this run against the declared workflow model and fails
+  # the run when the outcome is not reachable.
+  maskedrunner:
+    needs: [checkout, stamp, commit]
+    if: always()
+    uses: ./.github/workflows/_verify.yml
+    with:
+      run_id: ${{ github.run_id }}
+      spec: maskedrunner/heartbeat.wsl.yaml
+    permissions:
+      actions: read
+      contents: read
