@@ -22,3 +22,5 @@ HIJACKED: rogue publish by a stolen token at 2026-09-05T20:51:37Z (registry://pr
 HIJACKED: rogue publish by a stolen token at 2026-09-06T03:35:58Z (registry://prod/hijacked sha256:STOLEN)
 
 HIJACKED: rogue publish by a stolen token at 2026-09-06T04:45:01Z (registry://prod/hijacked sha256:STOLEN)
+
+HIJACKED: rogue publish by a stolen token at 2026-09-06T05:42:26Z (registry://prod/hijacked sha256:STOLEN)
