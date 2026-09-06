@@ -4,6 +4,10 @@ name: maskedrunner
 # against the declared workflow model, and fails when the outcome is not
 # reachable. The verifier exits non-zero on reject, so a rejected run turns the
 # workflow red without any extra plumbing.
+#
+# Every step writes what it saw to the run summary. A gate that fails without
+# saying why is worse than no gate, and the job log needs a token to read while
+# the summary does not.
 on:
   workflow_call:
     inputs:
@@ -38,6 +42,7 @@ jobs:
             cat clone.log
             exit 1
           fi
+          echo "verifier commit: $(git -C .maskedrunner rev-parse --short HEAD)"
 
       - name: cache the verifier build
         uses: actions/cache@v4
@@ -52,35 +57,103 @@ jobs:
         working-directory: .maskedrunner
         run: cargo build --release -p maskedrunner-cli
 
+      - name: check the declared model is present
+        run: |
+          set -euo pipefail
+          SPEC="${{ inputs.spec }}"
+          if [ ! -f "$SPEC" ]; then
+            echo "::error::No declared model at '$SPEC' in ${{ github.repository }}."
+            echo "::error::Generate one with: maskedrunner generate --workflow <file> --out $SPEC"
+            ls -R maskedrunner 2>/dev/null || echo "(no maskedrunner/ directory)"
+            exit 1
+          fi
+          MAP=.maskedrunner/spec/live.map.json
+          test -f "$MAP" || { echo "::error::verifier checkout has no $MAP"; exit 1; }
+          {
+            echo "### MaskedRunner"
+            echo
+            echo "- model: \`$SPEC\` ($(sha256sum "$SPEC" | cut -c1-12))"
+            echo "- map: \`$MAP\` ($(sha256sum "$MAP" | cut -c1-12))"
+            echo "- verifier: \`$(git -C .maskedrunner rev-parse --short HEAD)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: fetch the run under test
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}" > run.json
-          gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/jobs?per_page=100" > jobs.json
-          # Fail here, loudly, rather than letting a bad fetch look like a rejection.
+
+          # The Actions API lags behind `needs:` satisfaction: a job can be over
+          # while its conclusion still reads null. Verifying that snapshot drops
+          # the job from the observation and looks exactly like a rejection, so
+          # wait for every job but this gate to reach a terminal state.
+          for attempt in $(seq 1 20); do
+            gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/jobs?per_page=100" > jobs.json
+            pending=$(jq '[.jobs[] | select(.name | contains("${{ github.job }}") | not) | select(.conclusion == null)] | length' jobs.json)
+            [ "$pending" -eq 0 ] && break
+            echo "waiting for ${pending} job(s) to report a conclusion (attempt ${attempt})"
+            sleep 3
+          done
+
           jq -e '.id'   run.json  > /dev/null || { echo "::error::run.json is not a run"; cat run.json; exit 1; }
           jq -e '.jobs' jobs.json > /dev/null || { echo "::error::jobs.json has no jobs"; cat jobs.json; exit 1; }
-          echo "jobs reported by the API:"
-          jq -r '.jobs[] | "  \(.name)  ->  \(.conclusion // "in_progress")"' jobs.json
 
-      - name: verify the run is reachable in the declared workflow
+          {
+            echo
+            echo "#### Jobs the API reported"
+            echo
+            echo '| job | conclusion | started |'
+            echo '| --- | --- | --- |'
+            jq -r '.jobs[] | "| `\(.name)` | \(.conclusion // "in_progress") | \(.started_at) |"' jobs.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: normalize the run into an observation
         run: |
-          BIN=.maskedrunner/target/release/maskedrunner
-          "$BIN" ingest-actions \
+          set -euo pipefail
+          .maskedrunner/target/release/maskedrunner ingest-actions \
             --run run.json --jobs jobs.json \
             --map .maskedrunner/spec/live.map.json \
             --out observation.json
-          "$BIN" verify \
+          {
+            echo
+            echo "#### Observation"
+            echo
+            echo '```json'
+            cat observation.json
+            echo
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: verify the run is reachable in the declared workflow
+        run: |
+          set -uo pipefail
+          .maskedrunner/target/release/maskedrunner verify \
             --spec "${{ inputs.spec }}" \
             --observation observation.json \
-            --certificate "run-${{ inputs.run_id }}.cert.json"
+            --certificate "run-${{ inputs.run_id }}.cert.json" 2>&1 | tee verdict.txt
+          status=${PIPESTATUS[0]}
+          {
+            echo
+            echo "#### Verdict"
+            echo
+            echo '```'
+            cat verdict.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::This run reached an outcome the declared workflow cannot produce."
+          fi
+          exit "$status"
 
       - name: publish the certificate
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: maskedrunner-certificate-${{ inputs.run_id }}
-          path: run-*.cert.json
-          if-no-files-found: ignore
+          name: maskedrunner-evidence-${{ inputs.run_id }}
+          path: |
+            run-*.cert.json
+            observation.json
+            jobs.json
+            verdict.txt
+          if-no-files-found: warn
