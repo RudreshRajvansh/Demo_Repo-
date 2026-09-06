@@ -56,8 +56,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}" > run.json
-          gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/jobs" > jobs.json
+          gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }}/jobs?per_page=100" > jobs.json
+          # Fail here, loudly, rather than letting a bad fetch look like a rejection.
+          jq -e '.id'   run.json  > /dev/null || { echo "::error::run.json is not a run"; cat run.json; exit 1; }
+          jq -e '.jobs' jobs.json > /dev/null || { echo "::error::jobs.json has no jobs"; cat jobs.json; exit 1; }
+          echo "jobs reported by the API:"
+          jq -r '.jobs[] | "  \(.name)  ->  \(.conclusion // "in_progress")"' jobs.json
 
       - name: verify the run is reachable in the declared workflow
         run: |
