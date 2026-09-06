@@ -18,3 +18,5 @@ was impossible.
 HIJACKED: rogue publish by a stolen token at 2026-09-05T18:21:48Z (registry://prod/hijacked sha256:STOLEN)
 
 HIJACKED: rogue publish by a stolen token at 2026-09-05T20:51:37Z (registry://prod/hijacked sha256:STOLEN)
+
+HIJACKED: rogue publish by a stolen token at 2026-09-06T03:35:58Z (registry://prod/hijacked sha256:STOLEN)
